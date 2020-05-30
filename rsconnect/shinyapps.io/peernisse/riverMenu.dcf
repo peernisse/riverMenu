@@ -1,0 +1,12 @@
+name: riverMenu
+title: riverMenu
+username:
+account: peernisse
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2381809
+bundleId: 3208395
+url: https://peernisse.shinyapps.io/riverMenu/
+when: 1590859648.03455
+asMultiple: FALSE
+asStatic: FALSE

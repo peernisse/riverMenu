@@ -90,13 +90,21 @@ ui <- dashboardPage(
                            h1('Build Trip Menu'),
                            hr(),
                            fluidRow(
-                             textInput('tripName',"Trip Name")
-                           ),
+                             column(
+                               textInput('tripName',"Trip Name", width = '90%'),
+                               width = 12
+                               )#End column
+                           ),#End fluid row
+                           hr(),
+                           p('Below are the choices to build the menu on a by-meal
+                              basis. Select "Commit" after each entry to add it to your menu.'),
                            fluidRow(
                              column(width=6,
                                     
-                                    uiOutput('lumeal')
-                                    
+                                    uiOutput('lumeal'),
+                                    pickerInput('nopeople',
+                                                label = 'Select Number of People',
+                                                choices = seq(1:30))
                                     
                                     
                                     ),#End column 1
@@ -106,10 +114,27 @@ ui <- dashboardPage(
                                     
                              column(width=6,
                                     
-                                    uiOutput('lumtype')
-                           )#End column 2
+                                    uiOutput('lumtype'),
+                                    pickerInput('riverday',label = 'Select River Day',
+                                                choices = seq(1:30))
+                              )#End column 2
                         
-                           )#End fluid row  
+                           ),#End fluid row 
+                           
+                           fluidRow(
+                             column(width =12,
+                                    actionButton('commit',label='Commit',icon = icon('pencil'))
+                                    )#End column
+                             
+                           ),#End fluid row
+                           
+                           hr(),
+                           fluidRow(
+                             box(
+                               title = 'Committed Menu Items'
+                               
+                             )
+                           )#End fluid row
                            
                         ),#End tab item planner
              
@@ -190,7 +215,11 @@ server <- function(input, output,session) {
     
   })#End lu meal type
   
-  
+  #Buttons observe and actions-------------------
+  observeEvent(input$commit,{
+    
+    
+  })
   
   
 }#End server function
