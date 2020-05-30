@@ -1,9 +1,12 @@
 
 
 library(shiny)
+library(shinyFiles)
 library(tidyverse)
 library(DT)
 library(shinydashboard)
+library(shinyWidgets)
+library(googlesheets)
 
 
 # Ap UI begin-----
@@ -24,6 +27,11 @@ ui <- dashboardPage(
            sidebarMenu(
                    menuItem("Menu Planner", tabName = "menuplanner", icon = icon("pencil"))
                    
+           ),#End sidebar menu
+           
+           sidebarMenu(
+             menuItem("View Data Tables", tabName = "viewdfs", icon = icon("glasses"))
+             
            )#End sidebar menu
            
    ),#End db sidebar
@@ -82,16 +90,62 @@ ui <- dashboardPage(
                            h1('Build Trip Menu'),
                            hr(),
                            fluidRow(
+                             textInput('tripName',"Trip Name")
+                           ),
+                           fluidRow(
                              column(width=6,
-                                    textInput('tripName',"Trip Name")),
-                             column(width=6,
-                                    p("Placeholder")
                                     
-                                    )
-                           )
+                                    uiOutput('lumeal')
+                                    
+                                    
+                                    
+                                    ),#End column 1
+                             
+                             
+                             #shinySaveButton('projsave',label='Save Menu',title='Save Project'),
+                                    
+                             column(width=6,
+                                    
+                                    uiOutput('lumtype')
+                           )#End column 2
+                        
+                           )#End fluid row  
                            
-                           
-                           )#End tab item planner
+                        ),#End tab item planner
+             
+             
+              tabItem(tabName = 'viewdfs',
+                      
+                        h1('Data Tables'),
+                        
+                        fluidRow(
+                          
+                          box(title = 'Ingredient List',
+                              DTOutput('LU_INGREDIENTS'),collapsible = TRUE,collapsed = TRUE,
+                              width = 12
+                          ),#End box
+                          box(title = 'Meal List',
+                              DTOutput('LU_MEAL'),collapsible = TRUE,collapsed = TRUE,
+                              width = 12
+                          ),#End box
+                          box(title = 'Meal TYpe Lookup',
+                              DTOutput('LU_MEAL_TYPE'),collapsible = TRUE,collapsed = TRUE,
+                              width = 12
+                          ),#End box
+                          box(title = 'Menu Meal and Ingredient Cross-Reference',
+                              DTOutput('XREF_INGREDIENT'),collapsible = TRUE,collapsed = TRUE,
+                              width = 12
+                          )#End box
+                        
+                        )#End fluid row
+                      
+                        
+                        
+                      
+                      
+                      
+                      )#End tab item viewdfs
+             
                 )#End tab items
            
            
@@ -101,8 +155,44 @@ ui <- dashboardPage(
 
 # Define server logic required to draw a histogram
 server <- function(input, output,session) {
+  #Import Data-------------------------------------------------------
+  #Register google sheet with the data frames
+  gs<-gs_url('https://docs.google.com/spreadsheets/d/1qbWU0Ix6VrUumYObYyddZ1NvCTEjVk18VeWxbvrw5iY/edit?usp=sharing')
    
-   
+  #Read in data frames---------
+  output$LU_INGREDIENTS<-renderDT({gs_read(gs,'LU_INGREDIENTS')})
+  output$LU_MEAL<-renderDT({gs_read(gs,'LU_MEAL')})
+  output$LU_MEAL_TYPE<-renderDT({gs_read(gs,'LU_MEAL_TYPE')})
+  output$XREF_INGREDIENT<-renderDT({gs_read(gs,'XREF_INGREDIENT')})
+  
+  #Lookup values----------
+  mls<-gs_read(gs,'LU_MEAL') %>% pull(MEAL_NAME) %>% sort()
+  mtypes<-gs_read(gs,'LU_MEAL_TYPE') %>% pull(MEAL_TYPE) %>% sort()
+  
+  #Dropdowns----------------
+  
+  #Lookup meal name
+  output$lumeal<-renderUI({
+    
+    pickerInput('choosemeal',label='Select a Meal',
+                choices = mls
+                )#End picker input
+    
+  })#End output lumeanl
+  
+  #Lookup meal type
+  
+  output$lumtype<-renderUI({
+    pickerInput(
+      'choosemealtype',label = 'Select Meal Type',
+      choices = mtypes
+    )
+    
+  })#End lu meal type
+  
+  
+  
+  
 }#End server function
 
 # Run the application 
