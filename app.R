@@ -7,11 +7,23 @@ library(DT)
 library(shinydashboard)
 library(shinyWidgets)
 library(googlesheets)
+library(rhandsontable)
+
+#Testing
+# gs<-gs_url('https://docs.google.com/spreadsheets/d/1qbWU0Ix6VrUumYObYyddZ1NvCTEjVk18VeWxbvrw5iY/edit?usp=sharing')
+# 
+# LU_INGREDIENTS<-gs_read(gs,'LU_INGREDIENTS')
+# LU_MEAL<-gs_read(gs,'LU_MEAL')
+# LU_MEAL_TYPE<-gs_read(gs,'LU_MEAL_TYPE')
+# XREF_INGREDIENT<-gs_read(gs,'XREF_INGREDIENT')
+####
+
 
 
 # Ap UI begin-----
 ui <- dashboardPage(
-
+    #links----------------
+    
    #HEader begin---------
    dashboardHeader(
            title="Trip Menu Planner"
@@ -38,6 +50,11 @@ ui <- dashboardPage(
    
    #Pages begin----------------
    dashboardBody(
+     
+     tags$head(
+       tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
+     ),
+     
            tabItems(
                    # Home tab content----------------
              tabItem(tabName = "home",
@@ -90,21 +107,31 @@ ui <- dashboardPage(
                            h1('Build Trip Menu'),
                            hr(),
                            fluidRow(
-                             column(
+                             column(width = 12,
+                               h2('Step 1: Create Trip'),
+                               p('This will create a working directory on your C: drive 
+                                 called "RiverMenu" for your trip data. You can thereby work on your menu 
+                                 and return to it later.'),
                                textInput('tripName',"Trip Name", width = '90%'),
-                               width = 12
+                               actionButton('createtrip','Create Trip',style="float:left;
+                                            background-color:#007bff;color:white;"
+                                            )
+                               
                                )#End column
                            ),#End fluid row
                            hr(),
                            p('Below are the choices to build the menu on a by-meal
-                              basis. Select "Commit" after each entry to add it to your menu.'),
+                              basis. Select "Add Meal" after each entry to add it to your menu.'),
                            fluidRow(
                              column(width=6,
                                     
-                                    uiOutput('lumeal'),
-                                    pickerInput('nopeople',
-                                                label = 'Select Number of People',
-                                                choices = seq(1:30))
+                                    pickerInput('riverday',label = 'River Day',
+                                                selected = '--Select River Day--',
+                                                choices = c('--Select River Day--',seq(1:30))
+                                                ),
+                                    uiOutput('lumtype')
+                                    
+                                    
                                     
                                     
                                     ),#End column 1
@@ -114,26 +141,64 @@ ui <- dashboardPage(
                                     
                              column(width=6,
                                     
-                                    uiOutput('lumtype'),
-                                    pickerInput('riverday',label = 'Select River Day',
-                                                choices = seq(1:30))
+                                    pickerInput('nopeople',
+                                                label = 'Number of People',
+                                                selected = '--Select Number of People--',
+                                                choices = c('--Select Number of People--',seq(1:30))),
+                                    uiOutput('lumeal')
+                                    
                               )#End column 2
                         
                            ),#End fluid row 
                            
                            fluidRow(
                              column(width =12,
-                                    actionButton('commit',label='Commit',icon = icon('pencil'))
+                                    actionButton('commit',label='Add Meal',
+                                                 style = "background-color:#007bff;color:white;",
+                                                 icon = icon('download')
+                                                 )#End button
                                     )#End column
                              
                            ),#End fluid row
                            
                            hr(),
+                           
                            fluidRow(
-                             box(
-                               title = 'Committed Menu Items'
+                             column(width = 12,
+                                        actionButton('save','Save Progress',
+                                                     style = "background-color:#007bff;color:white;margin-bottom:12px;",
+                                                     icon = icon('pencil')
+                                        )#End button
+                                    )#End column
+                             
+                             
+                          ),#End fluid row
+                           
+                           fluidRow(
+                            box(
+                               title = 'Meals added to the Menu',
+                               DTOutput('menulist'),width = 12
                                
-                             )
+                               
+                             )#End box
+                             
+                             
+                           ),#End fluid row
+                          
+                          p('The table below presents the ingredients and quantitites for each meal.
+                               Select meals in the table above to filter this table.'),
+                           
+                           fluidRow(
+                             
+                             
+                                 box(
+                                   title = 'Selected Meal and Ingredients',
+                                   DT::dataTableOutput('ingView'),
+                                   width = 12
+                                   
+                                 )#End box
+                             
+                             
                            )#End fluid row
                            
                         ),#End tab item planner
@@ -199,8 +264,9 @@ server <- function(input, output,session) {
   #Lookup meal name
   output$lumeal<-renderUI({
     
-    pickerInput('choosemeal',label='Select a Meal',
-                choices = mls
+    pickerInput('choosemeal',label='Meal Name',
+                selected = '--Select Meal--',
+                choices = c('--Select Meal--',mls)
                 )#End picker input
     
   })#End output lumeanl
@@ -209,17 +275,117 @@ server <- function(input, output,session) {
   
   output$lumtype<-renderUI({
     pickerInput(
-      'choosemealtype',label = 'Select Meal Type',
-      choices = mtypes
+      'choosemealtype',label = 'Meal Type',
+      selected = '--Select Meal Type--',
+      choices = c('--Select Meal Type--',mtypes)
     )
     
   })#End lu meal type
   
+  
+  #Growing menu dataframe--------------
+  
+  # D <- "RIVER_DAY,NO_PEOPLE,MEAL_TYPE,MEAL\n'','','',''"
+  # write(D, file = "data.csv")
+  
+  data <- reactiveValues(
+    file = data.frame()
+  )
+  
+  #Output menu table-----------------
+   output$menulist<-renderDT(
+     data$file,editable = TRUE, 
+     style = "bootstrap", rownames = FALSE
+   )
+ 
+  
+  
+   #Surface the ingredients table filtered by selection from the meal table-----------
+  
+  #Create join of menu item and ingredients---------
+  
+  
+  
+  viewMenuIngredients<-gs_read(gs,'XREF_INGREDIENT') %>% 
+    inner_join(gs_read(gs,'LU_MEAL')) %>% 
+    inner_join(gs_read(gs,'LU_INGREDIENTS')) %>% 
+    select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION) %>% 
+    arrange(MEAL_NAME,INGREDIENT)
+  
+  #Output the filtered table
+   output$ingView<-DT::renderDataTable({
+     
+       sel <- input$menulist_rows_selected
+       
+       lookup<-data$file[sel,]
+       
+       ings<-viewMenuIngredients %>% 
+         filter(MEAL_NAME %in% lookup$MEAL)
+       
+    
+   })#End output ingView
+  
+  
+  
+  
   #Buttons observe and actions-------------------
-  observeEvent(input$commit,{
-    
-    
-  })
+ 
+   #Button to add meals to the menu-----------
+   addData <- observeEvent(
+     input$commit,
+     {
+       newLine <- data.frame(
+        RIVER_DAY = input$riverday,
+         NO_PEOPLE = input$nopeople,
+         MEAL_TYPE = input$choosemealtype,
+         MEAL = input$choosemeal
+         
+         )
+       
+       print(newLine)
+       
+       
+       data$file <- bind_rows(data$file,newLine)
+     }
+   )
+   
+   #Button to save progress of the menu--------------
+   saveData<-observeEvent(input$save,{
+     
+     
+     
+   })
+   
+   #Button to create a local directory to store the menu----------------------
+   #CReate reactive value to store the local filepath for the session
+   activePath <- reactiveVal()
+   
+   #Observe create trip button and make directories accordingly and set the path
+   mkDir<-observeEvent(input$createtrip,{
+     
+     if(input$tripName == ""){
+       showNotification('Select a Trip Name')
+     } else
+       
+      if(input$tripName != "" & dir.exists(paste0('C:/RiverMenus/',input$tripName))){
+        
+        showNotification(paste0('C:/RiverMenus/',input$tripName,' already exists.'))
+        
+      } else
+     
+     if(input$tripName != "" & !dir.exists(paste0('C:/RiverMenus/',input$tripName))){
+
+       if(!dir.exists('C:/RiverMenus')){dir.create('C:/RiverMenus')}
+       dir.create(paste0('C:/RiverMenus/',input$tripName))
+       showNotification(paste0('C:/RiverMenus/',input$tripName,' has been created.'))
+       activePath(paste0('C:/RiverMenus/',input$tripName))
+       #print(activePath())
+
+     }
+     
+     
+     
+   })
   
   
 }#End server function
