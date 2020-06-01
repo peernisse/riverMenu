@@ -3,6 +3,7 @@
 library(shiny)
 library(shinyFiles)
 library(tidyverse)
+library(plyr)
 library(DT)
 library(shinydashboard)
 library(shinyWidgets)
@@ -143,6 +144,7 @@ ui <- dashboardPage(
                                     
                                     pickerInput('nopeople',
                                                 label = 'Number of People',
+                                                
                                                 selected = '--Select Number of People--',
                                                 choices = c('--Select Number of People--',seq(1:30))),
                                     uiOutput('lumeal')
@@ -309,7 +311,8 @@ server <- function(input, output,session) {
   viewMenuIngredients<-gs_read(gs,'XREF_INGREDIENT') %>% 
     inner_join(gs_read(gs,'LU_MEAL')) %>% 
     inner_join(gs_read(gs,'LU_INGREDIENTS')) %>% 
-    select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION) %>% 
+    select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
+           SERVING_SIZE_FACTOR) %>% 
     arrange(MEAL_NAME,INGREDIENT)
   
   #Output the filtered table
@@ -317,10 +320,16 @@ server <- function(input, output,session) {
      
        sel <- input$menulist_rows_selected
        
-       lookup<-data$file[sel,]
+       lookup<-data$file[sel,] %>% 
+         mutate(NO_PEOPLE = as.numeric(NO_PEOPLE))
        
        ings<-viewMenuIngredients %>% 
-         filter(MEAL_NAME %in% lookup$MEAL)
+         filter(MEAL_NAME %in% lookup$MEAL) %>% 
+         left_join(lookup, by = c('MEAL_NAME' = 'MEAL')) %>% 
+         as.data.frame(.) %>% 
+         mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
+         select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
+                NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY)
        
     
    })#End output ingView
@@ -335,10 +344,11 @@ server <- function(input, output,session) {
      input$commit,
      {
        newLine <- data.frame(
-        RIVER_DAY = input$riverday,
-         NO_PEOPLE = input$nopeople,
+         RIVER_DAY = input$riverday,
+         NO_PEOPLE = as.numeric(input$nopeople),
          MEAL_TYPE = input$choosemealtype,
-         MEAL = input$choosemeal
+         MEAL = input$choosemeal,
+         stringsAsFactors = FALSE
          
          )
        
@@ -360,31 +370,28 @@ server <- function(input, output,session) {
    #CReate reactive value to store the local filepath for the session
    activePath <- reactiveVal()
    
-   #Observe create trip button and make directories accordingly and set the path
+   #Observe create trip button and make directories accordingly and set the path.
+   #Then load the base data as csv files so the user can tweak as needed
    mkDir<-observeEvent(input$createtrip,{
      
      if(input$tripName == ""){
        showNotification('Select a Trip Name')
      } else
        
-      if(input$tripName != "" & dir.exists(paste0('C:/RiverMenus/',input$tripName))){
+      if(input$tripName != "" & dir.exists(paste0('./RiverMenus/',input$tripName))){
         
-        showNotification(paste0('C:/RiverMenus/',input$tripName,' already exists.'))
+        showNotification(paste0('./RiverMenus/',input$tripName,' already exists.'))
         
       } else
      
-     if(input$tripName != "" & !dir.exists(paste0('C:/RiverMenus/',input$tripName))){
+     if(input$tripName != "" & !dir.exists(paste0('./RiverMenus/',input$tripName))){
 
-       if(!dir.exists('C:/RiverMenus')){dir.create('C:/RiverMenus')}
-       dir.create(paste0('C:/RiverMenus/',input$tripName))
-       showNotification(paste0('C:/RiverMenus/',input$tripName,' has been created.'))
-       activePath(paste0('C:/RiverMenus/',input$tripName))
+       #if(!dir.exists('./RiverMenus')){dir.create('./RiverMenus')}
+       dir.create(paste0('./RiverMenus/',input$tripName))
+       showNotification(paste0('./RiverMenus/',input$tripName,' has been created.'))
+       activePath(paste0('./RiverMenus/',input$tripName))
        #print(activePath())
-
      }
-     
-     
-     
    })
   
   
