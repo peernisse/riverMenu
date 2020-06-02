@@ -5,3 +5,11 @@ hr{
 p{
   font-size: 14pt;
 }
+
+
+.btn-file {  
+           background-color:#007bff; 
+           border-color: #007bff; 
+          color:white;
+}
+

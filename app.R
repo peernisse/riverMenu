@@ -3,6 +3,7 @@
 library(shiny)
 library(shinyFiles)
 library(tidyverse)
+library(openxlsx)
 library(plyr)
 library(DT)
 library(shinydashboard)
@@ -109,16 +110,26 @@ ui <- dashboardPage(
                            hr(),
                            fluidRow(
                              column(width = 12,
-                               h2('Step 1: Create Trip'),
-                               p('This will create a working directory on your C: drive 
-                                 called "RiverMenu" for your trip data. You can thereby work on your menu 
-                                 and return to it later.'),
+                               h2('Step 1: Create Trip or Loading Existing'),
+                               p('This will allow you to pick a local directory for your trip data. You can thereby work on your menu 
+                                 and return to it later. Or, click "Load Existing" to pick up where you left off.'),
                                textInput('tripName',"Trip Name", width = '90%'),
-                               actionButton('createtrip','Create Trip',style="float:left;
+                               downloadButton('createtrip','Create Trip',style="float:left;
                                             background-color:#007bff;color:white;"
-                                            )
-                               
+                                            )#End button
+                                                    
                                )#End column
+                           ),#End fluid row
+                           fluidRow(
+                             column(width = 12,
+                                      h2('Load an Existing Trip File'),
+                                      fileInput("menuFile", buttonLabel = 'Choose File',
+                                                label=NULL,
+                                                placeholder = 'Choose Existing Menu File',
+                                                accept='.xlsx'
+                                                )#End file input
+                                
+                                    )#End column
                            ),#End fluid row
                            hr(),
                            p('Below are the choices to build the menu on a by-meal
@@ -167,7 +178,7 @@ ui <- dashboardPage(
                            
                            fluidRow(
                              column(width = 12,
-                                        actionButton('save','Save Progress',
+                                        downloadButton('save','Save Progress',
                                                      style = "background-color:#007bff;color:white;margin-bottom:12px;",
                                                      icon = icon('pencil')
                                         )#End button
@@ -289,9 +300,19 @@ server <- function(input, output,session) {
   
   # D <- "RIVER_DAY,NO_PEOPLE,MEAL_TYPE,MEAL\n'','','',''"
   # write(D, file = "data.csv")
+  inFile<-observeEvent(input$menuFile,{
+    
+    infile<-input$menuFile
+    data$file<-read.xlsx(infile$datapath,sheet = 'Menu') %>% 
+      select(RIVER_DAY,NO_PEOPLE,MEAL_TYPE,MEAL_NAME) %>% 
+      unique(.)
+    
+        }
+    )
   
   data <- reactiveValues(
     file = data.frame()
+    
   )
   
   #Output menu table-----------------
@@ -301,12 +322,22 @@ server <- function(input, output,session) {
    )
  
   
+  #Uploaded saved file-----------------------------------
+  # inFile<-input$menuFile
+  # localMenu<-reactiveValues(
+  # 
+  #   
+  #   out<-ifelse(is.null(inFile),data.frame(),read.xlsx(inFile$datapath,sheet = 'Menu'))
+  # 
+  #   
+  # )#End localMenu
+
+    
+  
   
    #Surface the ingredients table filtered by selection from the meal table-----------
   
   #Create join of menu item and ingredients---------
-  
-  
   
   viewMenuIngredients<-gs_read(gs,'XREF_INGREDIENT') %>% 
     inner_join(gs_read(gs,'LU_MEAL')) %>% 
@@ -315,7 +346,7 @@ server <- function(input, output,session) {
            SERVING_SIZE_FACTOR) %>% 
     arrange(MEAL_NAME,INGREDIENT)
   
-  #Output the filtered table
+  #Output the filtered table to be viewed in the app
    output$ingView<-DT::renderDataTable({
      
        sel <- input$menulist_rows_selected
@@ -324,8 +355,8 @@ server <- function(input, output,session) {
          mutate(NO_PEOPLE = as.numeric(NO_PEOPLE))
        
        ings<-viewMenuIngredients %>% 
-         filter(MEAL_NAME %in% lookup$MEAL) %>% 
-         left_join(lookup, by = c('MEAL_NAME' = 'MEAL')) %>% 
+         filter(MEAL_NAME %in% lookup$MEAL_NAME) %>% 
+         left_join(lookup, by = c('MEAL_NAME' = 'MEAL_NAME')) %>% 
          as.data.frame(.) %>% 
          mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
          select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
@@ -335,6 +366,28 @@ server <- function(input, output,session) {
    })#End output ingView
   
   
+   #Keep a running workbook of the menu to be saved whenever
+   myMenu<-reactive({
+     
+     myMenuOut<-createWorkbook()
+     
+     addWorksheet(myMenuOut,'Menu')
+     
+     mmo<-viewMenuIngredients %>% 
+       #filter(MEAL_NAME %in% lookup$MEAL) %>% 
+       left_join(data$file, by = c('MEAL_NAME' = 'MEAL_NAME')) %>% 
+       as.data.frame(.) %>% 
+       mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
+       select(RIVER_DAY,MEAL_TYPE,MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
+              NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY) %>% 
+       filter(!is.na(QUANTITY)) %>% 
+       arrange(RIVER_DAY,MEAL_TYPE)
+     
+     writeData(myMenuOut, sheet = 'Menu',mmo)
+     
+     return(myMenuOut)
+     
+   })
   
   
   #Buttons observe and actions-------------------
@@ -347,7 +400,7 @@ server <- function(input, output,session) {
          RIVER_DAY = input$riverday,
          NO_PEOPLE = as.numeric(input$nopeople),
          MEAL_TYPE = input$choosemealtype,
-         MEAL = input$choosemeal,
+         MEAL_NAME = input$choosemeal,
          stringsAsFactors = FALSE
          
          )
@@ -360,39 +413,87 @@ server <- function(input, output,session) {
    )
    
    #Button to save progress of the menu--------------
-   saveData<-observeEvent(input$save,{
+   
+   
+   output$save<-downloadHandler(
+     filename = function() {
+       
+         paste(input$tripName, ".xlsx", sep = "")
+       
+       
+       
+     },
      
-     
-     
-   })
+     content = function(file) {
+       saveWorkbook(myMenu(), file)
+     }
+   )
    
    #Button to create a local directory to store the menu----------------------
    #CReate reactive value to store the local filepath for the session
-   activePath <- reactiveVal()
+   #activePath <- reactiveVal()
+   
+   #Create empty data frame to use in the trip creation file download
+   #It downloads an excel file with headers and no data
+   tripDF<-data.frame(
+     MEAL_NAME = '',
+     INGREDIENT = '',
+     INGREDIENT_DESCRIPTION = '',
+     SERVING_SIZE_DESCRIPTION = '',
+     SERVING_SIZE_FACTOR = '',
+     stringsAsFactors = FALSE
+   )
    
    #Observe create trip button and make directories accordingly and set the path.
    #Then load the base data as csv files so the user can tweak as needed
-   mkDir<-observeEvent(input$createtrip,{
+   output$createtrip<-downloadHandler(
      
-     if(input$tripName == ""){
-       showNotification('Select a Trip Name')
-     } else
+     #if(input$tripName == "") return(NULL),
        
-      if(input$tripName != "" & dir.exists(paste0('./RiverMenus/',input$tripName))){
-        
-        showNotification(paste0('./RiverMenus/',input$tripName,' already exists.'))
-        
-      } else
      
-     if(input$tripName != "" & !dir.exists(paste0('./RiverMenus/',input$tripName))){
-
-       #if(!dir.exists('./RiverMenus')){dir.create('./RiverMenus')}
-       dir.create(paste0('./RiverMenus/',input$tripName))
-       showNotification(paste0('./RiverMenus/',input$tripName,' has been created.'))
-       activePath(paste0('./RiverMenus/',input$tripName))
-       #print(activePath())
-     }
-   })
+       filename = function() {
+         paste(input$tripName, ".xlsx", sep = "")
+       },
+       
+       content = function(file) {
+         write.xlsx(tripDF, file,row.names = FALSE)
+       }
+    
+   )#End download handler
+   
+   
+   
+   
+   # mkDir<-observeEvent(input$createtrip,{
+   #   
+   #   if(input$tripName == ""){
+   #     showNotification('Select a Trip Name')
+   #   } else
+   #     
+   #   if(input$tripName != ""){
+   #     #Make empty trip dataframe and save it to their computer
+   #     
+   #     
+   #     
+   #     
+   #     
+   #   }#End if
+   #     
+   #   #  if(input$tripName != "" & dir.exists(paste0('./RiverMenus/',input$tripName))){
+   #   #    
+   #   #    showNotification(paste0('./RiverMenus/',input$tripName,' already exists.'))
+   #   #    
+   #   #  } else
+   #   # 
+   #   # if(input$tripName != "" & !dir.exists(paste0('./RiverMenus/',input$tripName))){
+   #   # 
+   #   #   #if(!dir.exists('./RiverMenus')){dir.create('./RiverMenus')}
+   #   #   dir.create(paste0('./RiverMenus/',input$tripName))
+   #   #   showNotification(paste0('./RiverMenus/',input$tripName,' has been created.'))
+   #   #   activePath(paste0('./RiverMenus/',input$tripName))
+   #   #   #print(activePath())
+   #   # }
+   # })#End observe event
   
   
 }#End server function
