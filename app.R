@@ -34,13 +34,18 @@ ui <- dashboardPage(
    #Sidebar begin------------
    dashboardSidebar(
            
-           sidebarMenu(
+           sidebarMenu(id = 'pages',
                    menuItem("Home", tabName = "home", icon = icon("home"))
                    
            ),#End sidebar menu
            sidebarMenu(
                    menuItem("Menu Planner", tabName = "menuplanner", icon = icon("pencil"))
                    
+           ),#End sidebar menu
+           
+           sidebarMenu(
+             menuItem("Create New Meal", tabName = "newmeal", icon = icon("check"))
+             
            ),#End sidebar menu
            
            sidebarMenu(
@@ -93,7 +98,7 @@ ui <- dashboardPage(
                             
                             tags$img(src = 'kayak.jpg',width='350px',height='300px'),
                             tags$img(src = 'cataractsign.jpg',width='350px',height='300px'),
-                            tags$img(src = 'riverNest.jpg',width='350px',height='300px')
+                            tags$img(src = 'riverNest.jpg',width='375px',height='300px')
                             
                             
                             )
@@ -227,7 +232,20 @@ ui <- dashboardPage(
                            )#End fluid row
                            
                         ),#End tab item planner
-             
+              
+             #Add new meal tab-------------------------
+             tabItem(tabName = 'newmeal',
+                      h1('Create New Meal'),
+                      fluidRow(
+                        textInput('newmeal',label = 'New Meal Name'),
+                        textInput('newmealdesc',label = 'New Meal Description'),
+                        uiOutput('lumtype2')
+                        
+                        
+                      )#End fluid row
+                      
+                      
+                      ),#End tab item new meal
              
               tabItem(tabName = 'viewdfs',
                       
@@ -308,6 +326,16 @@ server <- function(input, output,session) {
   output$lumtype<-renderUI({
     pickerInput(
       'choosemealtype',label = 'Meal Type',
+      selected = '--Select Meal Type--',
+      choices = c('--Select Meal Type--',mtypes)
+    )
+    
+  })#End lu meal type
+  
+  #Choose meal type for new meal
+  output$lumtype2<-renderUI({
+    pickerInput(
+      'choosemealtype2',label = 'Meal Type',
       selected = '--Select Meal Type--',
       choices = c('--Select Meal Type--',mtypes)
     )
@@ -430,6 +458,28 @@ server <- function(input, output,session) {
   
   #Buttons observe and actions-------------------
  
+   #Observe meal type selection to filter meal name choices------
+  observe({
+    
+    # if(input$choosemealtype == '--Select Meal Type--')
+    #   return()
+    
+    mls<-LU_MEAL %>% 
+      filter(MEAL_TYPE %in% input$choosemealtype) %>% 
+      pull(MEAL_NAME) %>% 
+      sort()
+    prompt<-paste0('--Select ',input$choosemealtype,'--')
+    
+    updatePickerInput(session,'choosemeal',label='Meal Name',
+                      selected = prompt,
+                      choices = c(prompt,mls)
+                      )
+    
+    
+    
+    
+  })
+  
    #Button to add meals to the menu-----------
    addData <- observeEvent(
      input$commit,
@@ -477,7 +527,7 @@ server <- function(input, output,session) {
      },
      
      content = function(file) {
-       saveWorkbook(myMenu(), file)
+       saveWorkbook(myMenu(), file, overwrite = TRUE)
      }
    )
    
