@@ -237,15 +237,24 @@ ui <- dashboardPage(
              tabItem(tabName = 'newmeal',
                       h1('Create New Meal'),
                       fluidRow(
-                        textInput('newmeal',label = 'New Meal Name'),
-                        textInput('newmealdesc',label = 'New Meal Description'),
-                        uiOutput('lumtype2')
+                        column(width = 6,
+                           textInput('newmeal',label = 'New Meal Name'),
+                           textInput('newmealdesc',label = 'New Meal Description'),
+                           uiOutput('lumtype2')
+                               
+                        ),#End left column
+                        
+                        column(width = 6,
+                              p('Other side of 2 column form')
+                               
+                               )#End right column
+                        
                         
                         
                       )#End fluid row
                       
                       
-                      ),#End tab item new meal
+                  ),#End tab item new meal
              
               tabItem(tabName = 'viewdfs',
                       
@@ -468,7 +477,12 @@ server <- function(input, output,session) {
       filter(MEAL_TYPE %in% input$choosemealtype) %>% 
       pull(MEAL_NAME) %>% 
       sort()
-    prompt<-paste0('--Select ',input$choosemealtype,'--')
+    prompt<-ifelse(
+      input$choosemealtype == '--Select Meal Type--',
+      '--Select Meal Type First--',
+      paste0('--Select ',input$choosemealtype,'--')
+      
+    )#End ifelse
     
     updatePickerInput(session,'choosemeal',label='Meal Name',
                       selected = prompt,

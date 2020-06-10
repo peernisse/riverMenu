@@ -5,8 +5,8 @@ account: peernisse
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 2381809
-bundleId: 3208395
+bundleId: 3230278
 url: https://peernisse.shinyapps.io/riverMenu/
-when: 1590859648.03455
+when: 1591313701.89257
 asMultiple: FALSE
 asStatic: FALSE
