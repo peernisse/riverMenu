@@ -35,23 +35,14 @@ ui <- dashboardPage(
    dashboardSidebar(
            
            sidebarMenu(id = 'pages',
-                   menuItem("Home", tabName = "home", icon = icon("home"))
+                   menuItem("Home", tabName = "home", icon = icon("home")),
+                   menuItem("Menu Planner", tabName = "menuplanner", icon = icon("pencil")),
+                   menuItem("Create New Meal", tabName = "newmeal", icon = icon("check")),
+                   menuItem("View Data Tables", tabName = "viewdfs", icon = icon("glasses"))
                    
-           ),#End sidebar menu
-           sidebarMenu(
-                   menuItem("Menu Planner", tabName = "menuplanner", icon = icon("pencil"))
                    
-           ),#End sidebar menu
-           
-           sidebarMenu(
-             menuItem("Create New Meal", tabName = "newmeal", icon = icon("check"))
-             
-           ),#End sidebar menu
-           
-           sidebarMenu(
-             menuItem("View Data Tables", tabName = "viewdfs", icon = icon("glasses"))
-             
            )#End sidebar menu
+           
            
    ),#End db sidebar
    
@@ -144,7 +135,7 @@ ui <- dashboardPage(
                            hr(),
                            h2('Step 2: Select Trip Information and Meals'),
                            p('Below are the choices to build the menu on a by-meal
-                              basis. Select "Add Meal" after each entry to add it to your menu.'),
+                              basis. Select "Add Meal to Menu" after each entry to add it to your menu.'),
                            fluidRow(
                              column(width=6,
                                     
@@ -178,9 +169,9 @@ ui <- dashboardPage(
                            
                            fluidRow(
                              column(width =12,
-                                    actionButton('commit',label='Add Meal',
+                                    actionButton('commit',label='Add Meal to Menu',
                                                  style = "background-color:#007bff;color:white;",
-                                                 icon = icon('download')
+                                                 icon = icon('plus')
                                                  )#End button
                                     )#End column
                              
@@ -198,7 +189,12 @@ ui <- dashboardPage(
                                         actionButton('deleteMenuItem','Delete Menu Item',
                                                      style = "float:left;background-color:#dc3545;color:white;margin-bottom:12px;",
                                                       icon = icon('remove')
-                                        )#End button
+                                        ),#End button
+                                    
+                                        actionButton('addNewMeal','Create New Meal',
+                                                     style = "float:left;background-color:#28a745;color:white;margin-bottom:12px;",
+                                                     icon = icon('pencil'))
+                                    
                                     )#End column
                              
                              
@@ -251,7 +247,17 @@ ui <- dashboardPage(
                         
                         
                         
-                      )#End fluid row
+                      ),#End fluid row
+                     
+                     fluidRow(
+                       column(width = 12,
+                              
+                              actionButton('returnMenu','Return to Menu Planner',
+                                           style = "float:left;background-color:#007bff;color:white;margin-bottom:12px;",
+                                           icon = icon('arrow-left'))
+                              
+                              )#End column
+                     )#End fluid row
                       
                       
                   ),#End tab item new meal
@@ -528,6 +534,34 @@ server <- function(input, output,session) {
      
    })
    
+  
+  #Button to navigate to create new meal page------------------
+  createMeal<-observeEvent(input$addNewMeal,{
+    newtab <- switch(input$pages,
+                     "menuplanner" = "newmeal",
+                     "newmeal" = "menuplanner"
+    )
+
+    print(newtab)
+    
+    updateTabItems(session, "pages", newtab)
+    
+  })#end createMeal
+  
+  #Button to navigate to menu from create new meal page------------------
+  returnMenu<-observeEvent(input$returnMenu,{
+    newtab <- switch(input$pages,
+                     "newmeal" = "menuplanner",
+                     "menuplanner" = "newmeal"
+                     
+    )
+    
+    print(newtab)
+    
+    updateTabItems(session, "pages", newtab)
+    
+  })#end returnMenu
+  
    #Button to save progress of the menu--------------
    
    
