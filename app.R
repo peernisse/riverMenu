@@ -73,8 +73,8 @@ ui <- dashboardPage(
                                 h2('Description'),
                                 p("This menu planning app is based on years of river trip experience, both
                             commercial and private. It was initially develped in MS Access and has 
-                           had a lot of ingrediants and pre-designed meals loaded for the user to choose 
-                           from. There is also the option to add new ingrediants and create new meals."),
+                           had a lot of ingredients and pre-designed meals loaded for the user to choose 
+                           from. There is also the option to add new ingredients and create new meals."),
                                 h2('Instructions'),
                                 p('Put instruction statement here...'),
                                 tags$ul(
