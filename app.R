@@ -38,6 +38,9 @@ ui <- dashboardPage(
                    menuItem("Home", tabName = "home", icon = icon("home")),
                    menuItem("Menu Planner", tabName = "menuplanner", icon = icon("pencil")),
                    menuItem("Create New Meal", tabName = "newmeal", icon = icon("check")),
+                   menuItem("Shopping List", tabName = "shoppingList", icon = icon("shopping-basket")),
+                   menuItem("River Menu", tabName = "riverMenu", icon = icon("shopping-basket")),
+                   
                    menuItem("View Data Tables", tabName = "viewdfs", icon = icon("glasses"))
                    
                    
@@ -161,6 +164,8 @@ ui <- dashboardPage(
                                                 
                                                 selected = '--Select Number of People--',
                                                 choices = c('--Select Number of People--',seq(1:30))),
+                                    
+                                    #Meal list table-------------
                                     uiOutput('lumeal')
                                     
                               )#End column 2
@@ -178,6 +183,10 @@ ui <- dashboardPage(
                            ),#End fluid row
                            
                            hr(),
+                           
+                           h2('Step 3: Review Meals/Ingredients'),
+                           p("Your menu will appear below. Click a meal to see the ingredients 
+                             and quantities involved. You can edit any meal and its ingredients/quantities."),
                            #Menu buttons-----------------------
                            fluidRow(
                              column(width = 12,
@@ -225,7 +234,30 @@ ui <- dashboardPage(
                                  )#End box
                              
                              
-                           )#End fluid row
+                           ),#End fluid row
+                          
+                          hr(),
+                          
+                          h2('Step 4: Export Menu and Shopping List'),
+                          p("Two reports are available: A menu to take on the river 
+                            and a shopping list. The river menu gives a daily meal list 
+                            with the ingredients for that meal. The shopping list gives 
+                            a summary of all ingredients and quantities to buy"),
+                          
+                          #Menu and shopping list buttons---------------------
+                          fluidRow(
+                            actionButton('viewMenu','Preview Menu Report',
+                                         style = "float:left;background-color:#007bff;
+                                         color:white;margin-bottom:12px;margin-left:12px;",
+                                         icon = icon('list-alt')),#End action button,
+                            actionButton('viewShop','Preview Shopping List',
+                                         style = "float:left;background-color:#007bff;
+                                         color:white;margin-bottom:12px;margin-left:12px;",
+                                         icon = icon('shopping-basket'))#End action button,
+                            
+                            
+                            
+                          )#End fluid row,
                            
                         ),#End tab item planner
               
@@ -262,7 +294,46 @@ ui <- dashboardPage(
                       
                   ),#End tab item new meal
              
-              tabItem(tabName = 'viewdfs',
+             #Shopping list tab--------------------------------
+             tabItem(tabName = 'shoppingList',
+                     h1("Shopping List"),
+                     p("Below is a preview of your current shopping list."),
+                     
+                     DTOutput('sList'),
+                       
+                       fluidRow(
+                         column(width = 12,
+                                
+                                actionButton('returnMenu2','Return to Menu Planner',
+                                             style = "float:left;background-color:#007bff;color:white;margin-bottom:12px;",
+                                             icon = icon('arrow-left'))
+                                
+                         )#End column
+                       )#End fluid row
+                     
+                     ),#End shopping list page 
+             
+             #View menu tab--------------------------------
+             tabItem(tabName = 'riverMenu',
+                     h1("River Menu"),
+                     
+                     fluidRow(
+                       column(width = 12,
+                              
+                              actionButton('returnMenu3','Return to Menu Planner',
+                                           style = "float:left;background-color:#007bff;color:white;margin-bottom:12px;",
+                                           icon = icon('arrow-left'))
+                              
+                       )#End column
+                     )#End fluid row
+                     
+                     
+                     
+             ),#End shopping list page 
+             
+             #View data frames tab------------------
+             #This is for development only
+             tabItem(tabName = 'viewdfs',
                       
                         h1('Data Tables'),
                         
@@ -407,11 +478,12 @@ server <- function(input, output,session) {
            SERVING_SIZE_FACTOR) %>% 
     arrange(MEAL_NAME,INGREDIENT)
   
-  # viewMenuIngredients<-gs_read(gs,'XREF_INGREDIENT') %>% 
-  #   inner_join(gs_read(gs,'LU_MEAL')) %>% 
-  #   inner_join(gs_read(gs,'LU_INGREDIENTS')) %>% 
+  ########HEEEEEEEEEEEEEEEEEEEEERRRRRRRRRRRRRRRRRRRRREEEEEEEEEEEEEEE------------
+  # viewMenuIngredients<-gs_read(gs,'XREF_INGREDIENT') %>%
+  #   inner_join(gs_read(gs,'LU_MEAL')) %>%
+  #   inner_join(gs_read(gs,'LU_INGREDIENTS')) %>%
   #   select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
-  #          SERVING_SIZE_FACTOR) %>% 
+  #          SERVING_SIZE_FACTOR) %>%
   #   arrange(MEAL_NAME,INGREDIENT)
   
   #Output the filtered ingredients table to be viewed in the app--------------------
@@ -432,6 +504,60 @@ server <- function(input, output,session) {
        
     
    })#End output ingView
+  
+  #HERE###########################################
+  
+  
+  
+  #Output Preview shopping list table-----------------
+  output$sList<-DT::renderDataTable({
+   
+    lookup<-data$file
+    
+   shp1<-viewMenuIngredients %>% 
+     filter(MEAL_NAME %in% lookup$MEAL_NAME) %>% 
+     left_join(lookup, by = c('MEAL_NAME' = 'MEAL_NAME')) %>% 
+     as.data.frame(.) %>% 
+     mutate(QUANTITY1 = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
+     select(INGREDIENT,INGREDIENT_DESCRIPTION,QUANTITY1) %>% 
+     dplyr::group_by(INGREDIENT,INGREDIENT_DESCRIPTION) %>% 
+     dplyr::summarize(
+       QUANTITY = sum(QUANTITY1),
+       MEAL_COUNT = length(INGREDIENT)
+       ) %>% 
+     arrange(INGREDIENT)
+   
+   print(class(shp1))
+   
+   return(shp1)
+   
+   # shp2<-shp1 %>% 
+   #   group_by(INGREDIENT) %>%
+   #   summarize(
+   #     xxx = sum(QUANTITY1)
+   #   ) %>% 
+   #   as.data.frame(.)
+   # 
+   # return(shp2)
+    
+    # sel <- input$menulist_rows_selected
+    # 
+    # lookup<-data$file[sel,] %>% 
+    #   mutate(NO_PEOPLE = as.numeric(NO_PEOPLE))
+    # 
+    # shp<-viewMenuIngredients %>% 
+    #   filter(MEAL_NAME %in% lookup$MEAL_NAME) %>% 
+    #   left_join(lookup, by = c('MEAL_NAME' = 'MEAL_NAME')) %>% 
+    #   as.data.frame(.) %>% 
+    #   mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
+    #   select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
+    #          NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY)
+    
+    
+  })#End output ingView
+  
+  
+  
   
   
    #Keep a running workbook of the menu to be saved whenever------------------
@@ -548,7 +674,7 @@ server <- function(input, output,session) {
     
   })#end createMeal
   
-  #Button to navigate to menu from create new meal page------------------
+  #Button to navigate back to menu from create new meal page------------------
   returnMenu<-observeEvent(input$returnMenu,{
     newtab <- switch(input$pages,
                      "newmeal" = "menuplanner",
@@ -561,6 +687,66 @@ server <- function(input, output,session) {
     updateTabItems(session, "pages", newtab)
     
   })#end returnMenu
+  
+  
+  #Button to preview shopping list--------------------
+  
+  shopList<-observeEvent(input$viewShop,{
+    newtab <- switch(input$pages,
+                     "menuplanner" = "shoppingList",
+                     "shoppingList" = "menuplanner"
+    )
+    
+    print(newtab)
+    
+    updateTabItems(session, "pages", newtab)
+    
+  })#end view shop list
+  
+  #Button to navigate back to menu from view shopping list page------------------
+  returnMenu2<-observeEvent(input$returnMenu2,{
+    newtab <- switch(input$pages,
+                     "shoppingList" = "menuplanner",
+                     "menuplanner" = "shoppingList"
+                     
+    )
+    
+    print(newtab)
+    
+    updateTabItems(session, "pages", newtab)
+    
+  })#end returnMenu
+  
+  #Button to preview menu report------------------------
+  menuReport<-observeEvent(input$viewMenu,{
+    newtab <- switch(input$pages,
+                     "menuplanner" = "riverMenu",
+                     "riverMenu" = "menuplanner"
+    )
+    
+    print(newtab)
+    
+    updateTabItems(session, "pages", newtab)
+    
+  })#end view shop list
+  
+  
+  #Button to return to menu planner from menu preview---------------------
+  
+  returnMenu3<-observeEvent(input$returnMenu3,{
+    newtab <- switch(input$pages,
+                     "riverMenu" = "menuplanner",
+                     "menuplanner" = "riverMenu"
+                     
+    )
+    
+    print(newtab)
+    
+    updateTabItems(session, "pages", newtab)
+    
+  })#end returnMenu
+  
+  
   
    #Button to save progress of the menu--------------
    
