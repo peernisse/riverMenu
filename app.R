@@ -229,6 +229,7 @@ ui <- dashboardPage(
                                  box(
                                    title = 'Selected Meal and Ingredients',
                                    DT::dataTableOutput('ingView'),
+                                   #rHandsontableOutput('ingView'),
                                    width = 12
                                    
                                  )#End box
@@ -557,7 +558,27 @@ server <- function(input, output,session) {
   })#End output ingView
   
   
-  
+  #Preview and edit shopping list----------------------------------
+  ## Handsontable TODO:revise this to make an editable ing table
+  # observe({
+  #   if (!is.null(input$hot)) {
+  #     values[["previous"]] <- isolate(values[["DF"]])
+  #     DF = hot_to_r(input$hot)
+  #   } else {
+  #     if (is.null(values[["DF"]]))
+  #       DF <- DF
+  #     else
+  #       DF <- values[["DF"]]
+  #   }
+  #   values[["DF"]] <- DF
+  # })
+  # 
+  # output$hot <- renderRHandsontable({
+  #   DF <- values[["DF"]]
+  #   if (!is.null(DF))
+  #     rhandsontable(DF, useTypes = as.logical(input$useType), stretchH = "all")
+  # })
+  # 
   
   
    #Keep a running workbook of the menu to be saved whenever------------------
