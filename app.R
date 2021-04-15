@@ -191,17 +191,17 @@ ui <- dashboardPage(
                            fluidRow(
                              column(width = 12,
                                         downloadButton('save','Save Progress',
-                                                     style = "float:left;background-color:#007bff;color:white;margin-bottom:12px;",
+                                                     style = "padding-right:10px; float:left;background-color:#007bff;color:white;margin-bottom:12px;",
                                                      icon = icon('pencil')
                                         ),#End button
                                       
                                         actionButton('deleteMenuItem','Delete Menu Item',
-                                                     style = "float:left;background-color:#dc3545;color:white;margin-bottom:12px;",
+                                                     style = "padding-right:10px;float:left;background-color:#dc3545;color:white;margin-bottom:12px;",
                                                       icon = icon('remove')
                                         ),#End button
                                     
                                         actionButton('addNewMeal','Create New Meal',
-                                                     style = "float:left;background-color:#28a745;color:white;margin-bottom:12px;",
+                                                     style = "padding-right:10px;float:left;background-color:#28a745;color:white;margin-bottom:12px;",
                                                      icon = icon('pencil'))
                                     
                                     )#End column
@@ -221,7 +221,7 @@ ui <- dashboardPage(
                            ),#End fluid row
                           
                           p('The table below presents the ingredients and quantitites for each meal.
-                               Select meals in the table above to filter this table.'),
+                               Select/Deselect meals in the table above to filter this table.'),
                            
                            fluidRow(
                              
@@ -229,7 +229,7 @@ ui <- dashboardPage(
                                  box(
                                    title = 'Selected Meal and Ingredients',
                                    DT::dataTableOutput('ingView'),
-                                   #rHandsontableOutput('ingView'),
+                                   #rHandsontableOutput('hot'),
                                    width = 12
                                    
                                  )#End box
@@ -237,13 +237,19 @@ ui <- dashboardPage(
                              
                            ),#End fluid row
                           
+                          fluidRow(
+                            
+                            
+                            
+                          ),#end fluid row
+                          
                           hr(),
                           
                           h2('Step 4: Export Menu and Shopping List'),
                           p("Two reports are available: A menu to take on the river 
                             and a shopping list. The river menu gives a daily meal list 
                             with the ingredients for that meal. The shopping list gives 
-                            a summary of all ingredients and quantities to buy"),
+                            a summary of all ingredients and quantities to buy."),
                           
                           #Menu and shopping list buttons---------------------
                           fluidRow(
@@ -320,7 +326,7 @@ ui <- dashboardPage(
                      
                      fluidRow(
                        column(width = 12,
-                              
+                              DTOutput('menuPlan'),
                               actionButton('returnMenu3','Return to Menu Planner',
                                            style = "float:left;background-color:#007bff;color:white;margin-bottom:12px;",
                                            icon = icon('arrow-left'))
@@ -444,6 +450,11 @@ server <- function(input, output,session) {
       select(RIVER_DAY,MEAL_TYPE,MEAL_NAME,NO_PEOPLE) %>% 
       unique(.)
     
+    data$revMenu<-read.xlsx(infile$datapath,sheet = 'Menu') %>% 
+      select(RIVER_DAY,MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
+             NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY,REVISED) %>% 
+      filter(REVISED == "Revised")
+    
     #LU_INGREDIENTS<-read.xlsx(infile$datapath,sheet = 'LU_INGREDIENTS')
     data$LU_MEAL<-read.xlsx(infile$datapath,sheet = 'LU_MEAL')
     #LU_MEAL_TYPE<-read.xlsx(infile$datapath,sheet = 'LU_MEAL_TYPE')
@@ -456,8 +467,8 @@ server <- function(input, output,session) {
  
   #Define reactive menu data frame controlled by user input, uploads, or CRUD ops---------------
   data <- reactiveValues(
-    file = data.frame()
-    
+    file = data.frame(),
+    revMenu = data.frame()
     
   )
   
@@ -488,28 +499,82 @@ server <- function(input, output,session) {
   #   arrange(MEAL_NAME,INGREDIENT)
   
   #Output the filtered ingredients table to be viewed in the app--------------------
-   output$ingView<-DT::renderDataTable({
-     
-       sel <- input$menulist_rows_selected
-       
-       lookup<-data$file[sel,] %>% 
-         mutate(NO_PEOPLE = as.numeric(NO_PEOPLE))
-       
-       ings<-viewMenuIngredients %>% 
-         filter(MEAL_NAME %in% lookup$MEAL_NAME) %>% 
-         left_join(lookup, by = c('MEAL_NAME' = 'MEAL_NAME')) %>% 
-         as.data.frame(.) %>% 
-         mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
-         select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
-                NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY)
-       
+  #Make ingredient df from selected meal rows
+  
+      #Create reactive objects from rows selected
+      sel<-reactiveValues(
+        
+        sel2 = vector(),
+        lookup = data.frame(),
+        ings = data.frame()
+        
+        )
     
-   })#End output ingView
   
-  #HERE###########################################
+      ingredients<-observeEvent( input$menulist_rows_selected, {
+        
+        
+        sel$sel2<-input$menulist_rows_selected
+        
+        sel$lookup<-data$file[sel$sel2,] %>%
+                    mutate(NO_PEOPLE = as.numeric(NO_PEOPLE))
+        
+        sel$ings<-viewMenuIngredients %>%
+                     filter(MEAL_NAME %in% sel$lookup$MEAL_NAME) %>%
+                     left_join(sel$lookup, by = c('MEAL_NAME' = 'MEAL_NAME')) %>%
+                     as.data.frame(.) %>%
+                     mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling),
+                            REVISED = '') %>%
+                     select(RIVER_DAY,MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
+                            NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY,REVISED)
+        
+        if(nrow(data$revMenu) > 0){
+          print("Revs detected")
+          hold<-sel$ings %>% anti_join(data$revMenu,by = c('RIVER_DAY' = 'RIVER_DAY','MEAL_NAME' = 'MEAL_NAME',
+                                                           'INGREDIENT' = 'INGREDIENT'))
+          str(data$revMenu)
+          str(hold)
+          
+          data$revMenu2<-data$revMenu %>% 
+            filter(RIVER_DAY %in% sel$lookup$RIVER_DAY, MEAL_NAME %in% sel$lookup$MEAL_NAME)
+          
+          sel$ings<-bind_rows(hold,data$revMenu2) %>% 
+            arrange(MEAL_NAME)
+          
+        
+          
+        }
+        
+      })
+  
+    
+   
+    #Ouput ingredients table based on rows selected
+    output$ingView<-DT::renderDT(sel$ings,rownames = F, editable = T )
+    
+    proxy<-dataTableProxy('ingView')
+
+    observeEvent( input$ingView_cell_edit,{
+
+      info = input$ingView_cell_edit
+      str(info)
+      i = info$row
+      j = info$col + 1  # column index offset by 1
+      v = info$value
+      sel$ings[i, j] <<- DT::coerceValue(v, sel$ings[i, j])
+      sel$ings[i,9] <-"Revised"
+      replaceData(proxy, sel$ings, resetPaging = FALSE, rownames = FALSE)
+      
+      str(data$file)
+      str(sel$ings)
+
+    })
   
   
   
+  
+  # 
+  # 
   #Output Preview shopping list table-----------------
   output$sList<-DT::renderDataTable({
    
@@ -532,53 +597,16 @@ server <- function(input, output,session) {
    
    return(shp1)
    
-   # shp2<-shp1 %>% 
-   #   group_by(INGREDIENT) %>%
-   #   summarize(
-   #     xxx = sum(QUANTITY1)
-   #   ) %>% 
-   #   as.data.frame(.)
-   # 
-   # return(shp2)
-    
-    # sel <- input$menulist_rows_selected
-    # 
-    # lookup<-data$file[sel,] %>% 
-    #   mutate(NO_PEOPLE = as.numeric(NO_PEOPLE))
-    # 
-    # shp<-viewMenuIngredients %>% 
-    #   filter(MEAL_NAME %in% lookup$MEAL_NAME) %>% 
-    #   left_join(lookup, by = c('MEAL_NAME' = 'MEAL_NAME')) %>% 
-    #   as.data.frame(.) %>% 
-    #   mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
-    #   select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
-    #          NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY)
-    
-    
-  })#End output ingView
+   
+  })#End output sList
   
   
-  #Preview and edit shopping list----------------------------------
-  ## Handsontable TODO:revise this to make an editable ing table
-  # observe({
-  #   if (!is.null(input$hot)) {
-  #     values[["previous"]] <- isolate(values[["DF"]])
-  #     DF = hot_to_r(input$hot)
-  #   } else {
-  #     if (is.null(values[["DF"]]))
-  #       DF <- DF
-  #     else
-  #       DF <- values[["DF"]]
-  #   }
-  #   values[["DF"]] <- DF
-  # })
-  # 
-  # output$hot <- renderRHandsontable({
-  #   DF <- values[["DF"]]
-  #   if (!is.null(DF))
-  #     rhandsontable(DF, useTypes = as.logical(input$useType), stretchH = "all")
-  # })
-  # 
+  #Output menu plan table------------------------------
+    output$menuPlan<-renderDT({
+      
+      readWorkbook(myMenu(),sheet = 'Menu')
+      
+    })#end render menuPlan
   
   
    #Keep a running workbook of the menu to be saved whenever------------------
@@ -587,20 +615,42 @@ server <- function(input, output,session) {
      myMenuOut<-createWorkbook()
      
      addWorksheet(myMenuOut,'Menu')
+     
      addWorksheet(myMenuOut,'LU_INGREDIENTS')
      addWorksheet(myMenuOut,'LU_MEAL')
      addWorksheet(myMenuOut,'LU_MEAL_TYPE')
      addWorksheet(myMenuOut,'XREF_INGREDIENT')
      
-     
-     mmo<-viewMenuIngredients %>% 
-       #filter(MEAL_NAME %in% lookup$MEAL) %>% 
-       left_join(data$file, by = c('MEAL_NAME' = 'MEAL_NAME')) %>% 
-       as.data.frame(.) %>% 
-       mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
+     #This df is based on root menu values
+     #Need to be able to rip and replace any changes made in sel$ings
+     mmo<-viewMenuIngredients %>%
+       #filter(MEAL_NAME %in% lookup$MEAL) %>%
+       left_join(data$file, by = c('MEAL_NAME' = 'MEAL_NAME')) %>%
+       as.data.frame(.) %>%
+       mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>%
        select(RIVER_DAY,MEAL_TYPE,MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
-              NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY) %>% 
-       filter(!is.na(QUANTITY)) 
+              NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY) %>%
+       filter(!is.na(QUANTITY))
+     
+     
+     if(nrow(sel$ings) > 0){
+       
+       revised<-sel$ings %>% 
+         left_join(data$file, by = c('RIVER_DAY' = 'RIVER_DAY','MEAL_NAME' = 'MEAL_NAME','NO_PEOPLE' = 'NO_PEOPLE')) %>%
+         as.data.frame(.)
+       
+       revd<-anti_join(mmo,revised)
+       mmo<-bind_rows(revd,revised)
+       
+     }
+     
+     
+     
+     # mmo<-viewMenuIngredients %>%
+     #   #filter(MEAL_NAME %in% lookup$MEAL) %>%
+     #   left_join(data$file, by = c('MEAL_NAME' = 'MEAL_NAME')) %>%
+     #   left_join(sel$ings, by = c('MEAL_NAME' = 'MEAL_NAME','INGREDIENT' = 'INGREDIENT'))
+     
      #Set meal type order
      mmo$MEAL_TYPE<-factor(mmo$MEAL_TYPE,levels = mtypes)
      
@@ -617,7 +667,7 @@ server <- function(input, output,session) {
      
    })
   
-  
+    
   #Buttons observe and actions-------------------
  
    #Observe meal type selection to filter meal name choices------
