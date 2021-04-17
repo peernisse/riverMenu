@@ -1,0 +1,5 @@
+structure(list(Value = 1:10, Status = c(TRUE, TRUE, TRUE, TRUE, 
+TRUE, TRUE, TRUE, TRUE, TRUE, TRUE), Name = c("Ass", "Bong", 
+"C", "D", "Edgar", "F", "G", "H", "I", "J"), Date = structure(c(18731, 
+13618, 18733, 18734, 18735, 18736, 18737, 18738, 18739, 18740
+), class = "Date")), row.names = c(NA, -10L), class = "data.frame")

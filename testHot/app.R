@@ -64,9 +64,7 @@ editTable <- function(DF, outdir=getwd(), outfilename="table"){
     
     values <- reactiveValues()
     
-    ( DF <- data.frame(Value = 1:10, Status = TRUE, Name = LETTERS[1:10],
-                       Date = seq(from = Sys.Date(), by = "days", length.out = 10),
-                       stringsAsFactors = FALSE) )
+    
     
     ## Handsontable
     observe({
@@ -135,3 +133,6 @@ editTable <- function(DF, outdir=getwd(), outfilename="table"){
   runApp(list(ui=ui, server=server))
   return(invisible())
 }
+
+
+

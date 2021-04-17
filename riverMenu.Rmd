@@ -1,0 +1,63 @@
+---
+title: "`r params$title`"
+output: html_document
+params:
+  data: NA
+  title: NA
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,warning = F,error = F,message = F)
+```
+
+
+```{r results="asis"}
+
+library(tidyverse)
+library(openxlsx)
+library(knitr)
+
+
+dat<-params$data
+
+dys<-dat %>% 
+  mutate(Title = paste0('Day ',RIVER_DAY," - ",MEAL_TYPE," - ",MEAL_NAME," - ",NO_PEOPLE," people"))
+
+out<-list()
+
+for(i in unique(dys$Title)){
+  
+  #i<-"Day 1 - Breakfast - Lox and Bagels - 7 people"
+  
+  
+  df<-filter(dys,Title == i) %>% 
+    mutate(Title = paste0(INGREDIENT," - ",INGREDIENT_DESCRIPTION," - (",QUANTITY,")")) %>% 
+    select(Title)
+  
+  names(df)<-i
+  
+  out[[i]]<-df
+  
+}
+
+
+pt<-function(x,i){
+  kable(x[i])
+}
+
+
+for(i in 1:length(unique(dys$Title))){
+  print(pt(out,i))
+  cat("\n")
+}
+
+```
+
+
+
+
+
+
+
+
+

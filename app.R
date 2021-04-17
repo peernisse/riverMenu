@@ -10,6 +10,7 @@ library(shinydashboard)
 library(shinyWidgets)
 library(googlesheets)
 library(rhandsontable)
+library(markdown)
 
 #Testing
 # gs<-gs_url('https://docs.google.com/spreadsheets/d/1qbWU0Ix6VrUumYObYyddZ1NvCTEjVk18VeWxbvrw5iY/edit?usp=sharing')
@@ -304,16 +305,23 @@ ui <- dashboardPage(
              #Shopping list tab--------------------------------
              tabItem(tabName = 'shoppingList',
                      h1("Shopping List"),
+                     
+                     
                      p("Below is a preview of your current shopping list."),
                      
-                     DTOutput('sList'),
+                     
                        
                        fluidRow(
                          column(width = 12,
                                 
                                 actionButton('returnMenu2','Return to Menu Planner',
                                              style = "float:left;background-color:#007bff;color:white;margin-bottom:12px;",
-                                             icon = icon('arrow-left'))
+                                             icon = icon('arrow-left')),
+                                downloadButton('sreport','Generate Shop List',
+                                               style = "padding-right:15px; float:left;background-color:#28a745;color:white;margin-bottom:12px;",
+                                               icon = icon('pencil')
+                                ),#End button
+                                DTOutput('sList')
                                 
                          )#End column
                        )#End fluid row
@@ -326,10 +334,15 @@ ui <- dashboardPage(
                      
                      fluidRow(
                        column(width = 12,
-                              DTOutput('menuPlan'),
+                              
                               actionButton('returnMenu3','Return to Menu Planner',
-                                           style = "float:left;background-color:#007bff;color:white;margin-bottom:12px;",
-                                           icon = icon('arrow-left'))
+                                           style = "padding-right:15px; float:left;background-color:#007bff;color:white;margin-bottom:12px;",
+                                           icon = icon('arrow-left')),
+                              downloadButton('report','Generate Report',
+                                             style = "padding-right:15px; float:left;background-color:#28a745;color:white;margin-bottom:12px;",
+                                             icon = icon('pencil')
+                              ),#End button
+                              DTOutput('menuPlan'),
                               
                        )#End column
                      )#End fluid row
@@ -385,10 +398,13 @@ server <- function(input, output,session) {
   #Register google sheet with the data frames
   gs<-gs_url('https://docs.google.com/spreadsheets/d/1qbWU0Ix6VrUumYObYyddZ1NvCTEjVk18VeWxbvrw5iY/edit?usp=sharing')
    
-  #Read in data frames---------
+  #Read in data frames for the first time when create trip is pushed---------
+  
+  
+  
   LU_INGREDIENTS<-gs_read(gs,'LU_INGREDIENTS')
   LU_MEAL<-gs_read(gs,'LU_MEAL')
-  
+
   LU_MEAL_TYPE<-gs_read(gs,'LU_MEAL_TYPE')
   XREF_INGREDIENT<-gs_read(gs,'XREF_INGREDIENT')
   
@@ -401,6 +417,7 @@ server <- function(input, output,session) {
   #Lookup values----------
   mls<-LU_MEAL %>% pull(MEAL_NAME) %>% sort()
   mtypes<-LU_MEAL_TYPE %>% pull(MEAL_TYPE)
+  
   
   #Dropdowns----------------
   
@@ -455,10 +472,19 @@ server <- function(input, output,session) {
              NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY,REVISED) %>% 
       filter(REVISED == "Revised")
     
-    #LU_INGREDIENTS<-read.xlsx(infile$datapath,sheet = 'LU_INGREDIENTS')
-    data$LU_MEAL<-read.xlsx(infile$datapath,sheet = 'LU_MEAL')
-    #LU_MEAL_TYPE<-read.xlsx(infile$datapath,sheet = 'LU_MEAL_TYPE')
-    #XREF_INGREDIENT<-read.xlsx(infile$datapath,sheet = 'XREF_INGREDIENT')
+    
+    #These are reading from the project file now, not google sheets
+    # LU_INGREDIENTS<-read.xlsx(infile$datapath,sheet = 'LU_INGREDIENTS')
+    # LU_MEAL<-read.xlsx(infile$datapath,sheet = 'LU_MEAL')
+    # LU_MEAL_TYPE<-read.xlsx(infile$datapath,sheet = 'LU_MEAL_TYPE')
+    # XREF_INGREDIENT<-read.xlsx(infile$datapath,sheet = 'XREF_INGREDIENT')
+    # 
+    # viewMenuIngredients<-XREF_INGREDIENT %>%
+    #   inner_join(LU_MEAL) %>%
+    #   inner_join(LU_INGREDIENTS) %>%
+    #   select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
+    #          SERVING_SIZE_FACTOR) %>%
+    #   arrange(MEAL_NAME,INGREDIENT)
     
     
         }
@@ -483,12 +509,19 @@ server <- function(input, output,session) {
    #Surface the ingredients table filtered by selection from the meal table-----------
   
   #Create join of menu item and ingredients---------
-  viewMenuIngredients<-XREF_INGREDIENT %>% 
-    inner_join(LU_MEAL) %>% 
-    inner_join(LU_INGREDIENTS) %>% 
+  #TODO:Make one of these from the google sheets source if no file has been uploaded
+  #TODO: but make a new one that reads from the uploaded project file instead
+  
+
+  viewMenuIngredients<-XREF_INGREDIENT %>%
+    inner_join(LU_MEAL) %>%
+    inner_join(LU_INGREDIENTS) %>%
     select(MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
-           SERVING_SIZE_FACTOR) %>% 
+           SERVING_SIZE_FACTOR) %>%
     arrange(MEAL_NAME,INGREDIENT)
+  
+  
+  
   
   ########HEEEEEEEEEEEEEEEEEEEEERRRRRRRRRRRRRRRRRRRRREEEEEEEEEEEEEEE------------
   # viewMenuIngredients<-gs_read(gs,'XREF_INGREDIENT') %>%
@@ -578,22 +611,24 @@ server <- function(input, output,session) {
   #Output Preview shopping list table-----------------
   output$sList<-DT::renderDataTable({
    
-    lookup<-data$file
     
-   shp1<-viewMenuIngredients %>% 
-     filter(MEAL_NAME %in% lookup$MEAL_NAME) %>% 
-     left_join(lookup, by = c('MEAL_NAME' = 'MEAL_NAME')) %>% 
-     as.data.frame(.) %>% 
-     mutate(QUANTITY1 = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
-     select(INGREDIENT,INGREDIENT_DESCRIPTION,QUANTITY1) %>% 
-     dplyr::group_by(INGREDIENT,INGREDIENT_DESCRIPTION) %>% 
-     dplyr::summarize(
-       QUANTITY = sum(QUANTITY1),
-       MEAL_COUNT = length(INGREDIENT)
-       ) %>% 
-     arrange(INGREDIENT)
-   
-   print(class(shp1))
+    shp1<-readWorkbook(myMenu(),sheet = 'ShopList')
+   #  lookup<-data$file
+   #  
+   # shp1<-viewMenuIngredients %>% 
+   #   filter(MEAL_NAME %in% lookup$MEAL_NAME) %>% 
+   #   left_join(lookup, by = c('MEAL_NAME' = 'MEAL_NAME')) %>% 
+   #   as.data.frame(.) %>% 
+   #   mutate(QUANTITY1 = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>% 
+   #   select(INGREDIENT,INGREDIENT_DESCRIPTION,QUANTITY1) %>% 
+   #   dplyr::group_by(INGREDIENT,INGREDIENT_DESCRIPTION) %>% 
+   #   dplyr::summarize(
+   #     QUANTITY = sum(QUANTITY1),
+   #     MEAL_COUNT = length(INGREDIENT)
+   #     ) %>% 
+   #   arrange(INGREDIENT)
+   # 
+   # print(class(shp1))
    
    return(shp1)
    
@@ -601,21 +636,97 @@ server <- function(input, output,session) {
   })#End output sList
   
   
+    #Output shopping list report from RMD file----------------------
+    output$sreport<-downloadHandler(
+      
+      
+      filename = paste(input$tripName,"_shopList", ".html", sep = ""),
+      content = function(file){
+        
+        # Copy the report file to a temporary directory before processing it, in
+        # case we don't have write permissions to the current working dir (which
+        # can happen when deployed).
+        
+        tempReport <- file.path(tempdir(), "shopList.Rmd")
+        file.copy("shopList.Rmd", tempReport, overwrite = TRUE)
+        
+        # Set up parameters to pass to Rmd document
+        params <- list(data = readWorkbook(myMenu(),sheet = 'ShopList'),
+                       title = paste(input$tripName," Shop List")
+        )
+        
+        # Knit the document, passing in the `params` list, and eval it in a
+        # child of the global environment (this isolates the code in the document
+        # from the code in this app).
+        
+        rmarkdown::render(tempReport, output_file = file,
+                          params = params,
+                          envir = new.env(parent = globalenv())
+        )
+        
+      }
+      
+    )#end download handler  
+    
+    
+    
+    
+    
+    
+    
   #Output menu plan table------------------------------
     output$menuPlan<-renderDT({
       
-      readWorkbook(myMenu(),sheet = 'Menu')
+      readWorkbook(myMenu(),sheet = 'Menu') %>% 
+        select(RIVER_DAY,MEAL_TYPE,NO_PEOPLE,INGREDIENT,QUANTITY)
+      
+     
       
     })#end render menuPlan
   
   
+    
+  #Output menu plan report from RMD file----------------------
+    output$report<-downloadHandler(
+      
+      
+      filename = paste(input$tripName,"_menu", ".html", sep = ""),
+      content = function(file){
+        
+        # Copy the report file to a temporary directory before processing it, in
+        # case we don't have write permissions to the current working dir (which
+        # can happen when deployed).
+        
+        tempReport <- file.path(tempdir(), "riverMenu.Rmd")
+        file.copy("riverMenu.Rmd", tempReport, overwrite = TRUE)
+        
+        # Set up parameters to pass to Rmd document
+        params <- list(data = readWorkbook(myMenu(),sheet = 'Menu'),
+                       title = paste(input$tripName," Menu")
+                      )
+        
+        # Knit the document, passing in the `params` list, and eval it in a
+        # child of the global environment (this isolates the code in the document
+        # from the code in this app).
+        
+        rmarkdown::render(tempReport, output_file = file,
+                          params = params,
+                          envir = new.env(parent = globalenv())
+        )
+        
+      }
+      
+    )#end download handler
+    
+    
+    
    #Keep a running workbook of the menu to be saved whenever------------------
    myMenu<-reactive({
      
      myMenuOut<-createWorkbook()
      
      addWorksheet(myMenuOut,'Menu')
-     
+     addWorksheet(myMenuOut,'ShopList')
      addWorksheet(myMenuOut,'LU_INGREDIENTS')
      addWorksheet(myMenuOut,'LU_MEAL')
      addWorksheet(myMenuOut,'LU_MEAL_TYPE')
@@ -627,9 +738,10 @@ server <- function(input, output,session) {
        #filter(MEAL_NAME %in% lookup$MEAL) %>%
        left_join(data$file, by = c('MEAL_NAME' = 'MEAL_NAME')) %>%
        as.data.frame(.) %>%
-       mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling)) %>%
+       mutate(QUANTITY = round_any(SERVING_SIZE_FACTOR*NO_PEOPLE,1,ceiling),
+              REVISED = '') %>%
        select(RIVER_DAY,MEAL_TYPE,MEAL_NAME,INGREDIENT,INGREDIENT_DESCRIPTION,SERVING_SIZE_DESCRIPTION,
-              NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY) %>%
+              NO_PEOPLE,SERVING_SIZE_FACTOR,QUANTITY,REVISED) %>%
        filter(!is.na(QUANTITY))
      
      
@@ -657,11 +769,25 @@ server <- function(input, output,session) {
      mmo<-mmo %>% 
        arrange(RIVER_DAY,MEAL_TYPE)
      
+     #Create shopping list
+     shpo<-mmo %>% 
+       select(INGREDIENT,INGREDIENT_DESCRIPTION,QUANTITY) %>% 
+       dplyr::group_by(INGREDIENT,INGREDIENT_DESCRIPTION) %>% 
+       dplyr::summarize(
+         QUANTITY = sum(QUANTITY),
+         MEAL_COUNT = length(INGREDIENT)
+       ) %>% 
+       arrange(INGREDIENT)
+       
+     
      writeData(myMenuOut, sheet = 'Menu',mmo)
+     writeData(myMenuOut, sheet = 'ShopList', shpo)
      writeData(myMenuOut,'LU_INGREDIENTS',LU_INGREDIENTS)
      writeData(myMenuOut,'LU_MEAL',LU_MEAL)
      writeData(myMenuOut,'LU_MEAL_TYPE',LU_MEAL_TYPE)
      writeData(myMenuOut,'XREF_INGREDIENT',XREF_INGREDIENT)
+     
+     
      
      return(myMenuOut)
      
